@@ -43,12 +43,19 @@ typedef void (WINAPI *PFNFWPMFREEMEMORY0)(
   _Inout_  void **p
 );
 
+typedef DWORD (WINAPI *PFNFWPMCALLOUTDELETEBYKEY0)(
+  _In_  HANDLE engineHandle,
+  _In_  const GUID *key
+);
+
+
 PFNFWPMENGINEOPEN0					pfnFwpmEngineOpen0 = NULL;
 PFNFWPMENGINECLOSE0					pfnFwpmEngineClose0 = NULL;
 PFNFWPMCALLOUTCREATEENUMHANDLE0		pfnFwpmCalloutCreateEnumHandle0 = NULL;
 PFNFWPMCALLOUTDESTROYENUMHANDLE0	pfnFwpmCalloutDestroyEnumHandle0 = NULL;
 PFNFWPMCALLOUTENUM0					pfnFwpmCalloutEnum0 = NULL;
 PFNFWPMFREEMEMORY0					pfnFwpmFreeMemory0 = NULL;
+PFNFWPMCALLOUTDELETEBYKEY0			pfnFwpmCalloutDeleteByKey0 = NULL;
 
 BOOLEAN LoadAPI()
 {
@@ -60,8 +67,18 @@ BOOLEAN LoadAPI()
 		pfnFwpmCalloutDestroyEnumHandle0 = (PFNFWPMCALLOUTDESTROYENUMHANDLE0)GetProcAddress(fwdll,"FwpmCalloutDestroyEnumHandle0");
 		pfnFwpmCalloutEnum0	= (PFNFWPMCALLOUTENUM0)GetProcAddress(fwdll,"FwpmCalloutEnum0");
 		pfnFwpmFreeMemory0	= (PFNFWPMFREEMEMORY0)GetProcAddress(fwdll,"FwpmFreeMemory0");
+		
+		pfnFwpmCalloutDeleteByKey0 = (PFNFWPMCALLOUTDELETEBYKEY0)GetProcAddress(fwdll,"FwpmCalloutDeleteByKey0");
 
-		if(pfnFwpmEngineOpen0 && pfnFwpmEngineClose0 && pfnFwpmCalloutCreateEnumHandle0 && pfnFwpmCalloutDestroyEnumHandle0 && pfnFwpmCalloutEnum0 && pfnFwpmFreeMemory0) {
+		if(pfnFwpmEngineOpen0 && 
+			pfnFwpmEngineClose0 && 
+			pfnFwpmCalloutCreateEnumHandle0 && 
+			pfnFwpmCalloutDestroyEnumHandle0 && 
+			pfnFwpmCalloutEnum0 && 
+			pfnFwpmFreeMemory0 && 
+			pfnFwpmCalloutDeleteByKey0
+			) {
+
 			return TRUE;
 		}
 		
@@ -113,13 +130,52 @@ BOOLEAN HlprFwpmLayerIsUserMode(_In_ const GUID* pLayerKey)
 
    return isUserMode;
 }
+
+UINT32 HlprFwpmCalloutDeleteByKey(_In_ const HANDLE engineHandle,
+                                  _In_ const GUID* pCalloutKey)
+{
+	UINT32 status = NO_ERROR;
+
+	if(engineHandle && pCalloutKey) {
+
+		status = pfnFwpmCalloutDeleteByKey0(engineHandle, pCalloutKey);
+
+		if(status != NO_ERROR) {
+
+			if(status != FWP_E_IN_USE && 
+				status != FWP_E_BUILTIN_OBJECT &&
+				status != FWP_E_CALLOUT_NOT_FOUND) {
+				
+				//printf("HlprFwpmCalloutDeleteByKey status :%x\n",status);
+			} else {
+				
+				status = NO_ERROR;
+			}
+		} else {
+
+		}
+	} else {
+		status = ERROR_INVALID_PARAMETER;
+	}
+
+	return status;
+}
+
 #include <locale.h>
+BOOLEAN		gbDeleteAll = FALSE;
 
 int _tmain(int argc, _TCHAR* argv[])
 {
 	// Is WinVista or Later Version ?
 
 	setlocale(LC_ALL, "");
+
+	if(argc == 2) {
+		//printf("%s file set\n",argv[1]);
+		if(!_tcsicmp(argv[1],_T("-da")) ) {
+			gbDeleteAll = TRUE;
+		}
+	} 
 
 	if(!LoadAPI()){
 		printf("Fwpuclnt.dll load fail\n");
@@ -178,7 +234,18 @@ int _tmain(int argc, _TCHAR* argv[])
 			continue;
 		}
 		printf(" Callouts[%d] : %S desc:%S\n", calloutIndex, ppCallouts[calloutIndex]->displayData.name,ppCallouts[calloutIndex]->displayData.description);
-		
+#if 0		
+		if(gbDeleteAll) {
+			result = HlprFwpmCalloutDeleteByKey(engineHandle,
+                                    &(ppCallouts[calloutIndex]->calloutKey));
+			if(result != NO_ERROR) {
+				printf("HlprFwpmCalloutDeleteByKey error status :%x\n",result);
+			} else {
+				printf("HlprFwpmCalloutDeleteByKey success status :%x\n",result);
+			}
+		}
+#endif
+
 	}
 	
 	if(ppCallouts)
