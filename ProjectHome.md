@@ -1,0 +1,1 @@
+get information about windows filtering platform
